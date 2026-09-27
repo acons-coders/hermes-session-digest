@@ -1,0 +1,45 @@
+Daily Session Digest. Do the steps in order. Never ask questions.
+
+STEP 1. Run this command with the terminal tool:
+  python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py pending
+It prints JSON: {"count": N, "sessions": [{"id": "...", "title": "...", "transcript": "..."}, ...]}
+If count is 0: reply exactly [SILENT] and stop.
+
+STEP 2. For EACH session in the list, one at a time, in order:
+  a. Call delegate_task with ONE task. Its goal is the SUBAGENT TEXT below, with the word TRANSCRIPT_FILE replaced by the session's "transcript" path. Change nothing else. Do not add the transcript content.
+  b. Take the subagent's reply text. Save it unchanged with write_file to the transcript path plus ".result"
+     (example: transcript /x/abc.txt -> write to /x/abc.txt.result).
+  c. Run with the terminal tool (put in the session id and the .result path):
+     python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py commit SESSION_ID RESULT_PATH
+     It prints OK or ERROR. On ERROR, do not retry. Go to the next session.
+Do not skip sessions. Do not write digest files yourself.
+
+STEP 3. Run with the terminal tool:
+  python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py report
+Your final reply is exactly its output. Add nothing. Do not use send_message.
+
+=== SUBAGENT TEXT ===
+Read the file TRANSCRIPT_FILE with read_file. Keep reading (use offset for the next part) until you have seen the last line "=== END OF TRANSCRIPT ===". Do not answer before that. It is one chat between a user and an AI assistant.
+">>> Tool call <<<" means the assistant used a tool. "--- system ... ---" blocks are automatic messages, not the user. "--- context compaction ---" is a summary of older parts of the chat.
+
+Reply with exactly these 4 sections, nothing else:
+
+SUMMARY:
+(2-4 sentences in English: what the user wanted, what was done, how it ended.)
+
+KEYWORDS:
+(5-10 lowercase keywords, comma-separated, hyphens for multi-word. Specific names of tools, projects, places. Not: session, user, help, hermes.)
+
+NOTEWORTHY:
+(yes or no)
+
+REASON:
+(if yes: one sentence. if no: -)
+
+Answer "yes" ONLY if one is true:
+1. A decision was made (tool, model, design or plan chosen).
+2. Something new was created (project, skill, script, cron job, service).
+3. The user said "remember", "save", "write down" or similar.
+4. The session ended with an unfinished task or open question.
+Otherwise "no". Most sessions are "no".
+=== END ===

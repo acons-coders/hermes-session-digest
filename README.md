@@ -49,6 +49,17 @@ The previous version selected sessions with `last_activity_at > MAX(digested_at)
 
 The cron prompt (in `~/.hermes/cron/jobs.json`) hardcodes the absolute path to `digest.py`. If the project moves, update the prompt.
 
+## Cron prompt
+
+`cron_prompt.txt` is the source of truth for the job's prompt. `jobs.json` holds the deployed copy. Edit the file, commit, then:
+
+```bash
+python3 digest.py prompt check     # "in sync" or "DIFFERS" (exit 1)
+python3 digest.py prompt install   # backup jobs.json, replace the prompt atomically
+```
+
+Hermes rejects `delegate_task` goals containing `<multi word>` / `{multi_word}` placeholders, so the subagent text uses `(…)` and the bare token `TRANSCRIPT_FILE`.
+
 ## License
 
 Internal tooling for the Hermes Alphazero installation. Not for redistribution.

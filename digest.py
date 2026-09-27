@@ -8,6 +8,7 @@ The cron agent drives three subcommands; everything mechanical lives here so the
   digest.py commit SID RESULT  parse the subagent's RESULT file, append entry, record in state DB
   digest.py report             print the Telegram text for this run, or [SILENT]
   digest.py transcript SID     print one transcript to stdout (debugging)
+  digest.py prompt check|install  compare / deploy cron_prompt.txt into jobs.json
 """
 from __future__ import annotations
 
@@ -27,6 +28,8 @@ DIGEST_DIR = HERMES_HOME / "knowledge" / "session-digests"
 LOG_FILE = HERMES_HOME / "logs" / "session_digest.log"
 WORK_DIR = HERMES_HOME / "cache" / "session-digest"
 RUN_FILE = WORK_DIR / "run.json"
+JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
+PROMPT_FILE = Path(__file__).resolve().parent / "cron_prompt.txt"
 
 JOB_ID = "6d986a839a80"          # this digest's own cron job; its sessions are never digested
 MIN_MESSAGES = 5
@@ -350,6 +353,28 @@ def cmd_report(_args) -> int:
     return 0
 
 
+def cmd_prompt(args) -> int:
+    """cron_prompt.txt (git) is the source of truth; jobs.json holds the deployed copy."""
+    source = PROMPT_FILE.read_text()
+    jobs = json.loads(JOBS_FILE.read_text())
+    job = next(j for j in jobs["jobs"] if j["id"] == JOB_ID)
+    if job["prompt"] == source:
+        print("prompt: in sync")
+        return 0
+    if args.action == "check":
+        print("prompt: DIFFERS between cron_prompt.txt and jobs.json (run: digest.py prompt install)")
+        return 1
+    backup = JOBS_FILE.with_name(f"jobs.json.bak-prompt-{datetime.now():%Y%m%d-%H%M%S}")
+    backup.write_text(JOBS_FILE.read_text())
+    job["prompt"] = source
+    tmp = JOBS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(jobs, indent=2, ensure_ascii=False))
+    os.replace(tmp, JOBS_FILE)
+    log(f"prompt installed into jobs.json (backup {backup.name})")
+    print(f"prompt: installed (backup {backup})")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -362,6 +387,9 @@ def main() -> int:
     t = sub.add_parser("transcript")
     t.add_argument("sid")
     t.set_defaults(fn=cmd_transcript)
+    pr = sub.add_parser("prompt", help="compare or install cron_prompt.txt into jobs.json")
+    pr.add_argument("action", choices=["check", "install"])
+    pr.set_defaults(fn=cmd_prompt)
     args = p.parse_args()
     return args.fn(args)
 
