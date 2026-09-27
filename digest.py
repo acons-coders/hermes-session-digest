@@ -34,6 +34,10 @@ MAX_SESSIONS_PER_RUN = 20         # leftovers are picked up by the next run
 LOOKBACK_DAYS = 14
 PING_MAX_ITEMS = 5
 PING_SUMMARY_CHARS = 200
+# No truncation: after the last compaction the transcript is bounded by the source
+# session's context window. Warn only, so outliers are visible in the log.
+WARN_TRANSCRIPT_CHARS = 400_000   # ~100k tokens
+END_MARKER = "=== END OF TRANSCRIPT ==="
 
 TOOL_PLACEHOLDER = ">>> Tool call <<<"
 
@@ -127,8 +131,11 @@ def cmd_pending(_args) -> int:
     for r in rows:
         path = transcript_path(r["id"])
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        text = render_transcript(r["id"])
+        if len(text) > WARN_TRANSCRIPT_CHARS:
+            log(f"WARNING: transcript {r['id']} is {len(text):,} chars (> {WARN_TRANSCRIPT_CHARS:,})")
         with os.fdopen(fd, "w") as f:
-            f.write(render_transcript(r["id"]))
+            f.write(text)
         out.append({"id": r["id"], "title": r["title"] or "(untitled)", "transcript": str(path)})
 
     RUN_FILE.write_text(json.dumps({"started": datetime.now().isoformat(timespec="seconds"),
@@ -189,6 +196,7 @@ def render_transcript(sid: str) -> str:
         flush_tools()
         lines.append(f"--- {label} ---\n{content}\n\n")
     flush_tools()
+    lines.append(END_MARKER + "\n")
     return "".join(lines)
 
 

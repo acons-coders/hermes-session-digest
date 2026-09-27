@@ -33,6 +33,8 @@ python3 digest.py transcript <sid>
 - Runtime injections stored as `role='user'` (delegation callbacks, background-process notices, cron / skill preambles, out-of-band messages, gateway metadata, `[SYSTEM: ...]`) are labelled `--- system (...) ---`.
 - Tool results and tool-call-only assistant turns become `>>> Tool call <<<`, and runs of them `>>> Tool call <<<  (xN)`.
 - Back-to-back identical rows are written once.
+- The last line is `=== END OF TRANSCRIPT ===`. The subagent is told to keep reading until it sees it (`read_file` pages at ~100k chars).
+- No size cap: after the last compaction a transcript is bounded by the source session's context window. `pending` logs a WARNING above 400k chars (~100k tokens).
 
 ## Why no time cursor
 
