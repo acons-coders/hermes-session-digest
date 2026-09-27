@@ -1,56 +1,51 @@
 # hermes-session-digest
 
-Scripts that power the daily `6d986a839a80` cron digest job in this Hermes installation.
+`digest.py` powers the daily `6d986a839a80` cron job ("Daily Session Digest"). Pure Python 3 stdlib, no LLM calls.
 
-## Scripts
+The cron agent only dispatches one summarizer subagent per session. Everything mechanical is done here: picking sessions, building transcripts, parsing replies, rendering entries, updating the state DB and building the Telegram text.
 
-### `extract_sessions.py`
-
-Mechanical companion for the digest cron. Three subcommands:
+## Subcommands
 
 ```bash
-python3 extract_sessions.py --pending
-# JSON to stdout: list of sessions awaiting digest (those ended since the last run).
+python3 digest.py pending
+# Picks ended sessions not yet in ~/.hermes/digest_state.db (last 14 days, >=5 messages,
+# max 20 per run; excludes this job's own cron sessions and their subagents).
+# Writes one transcript per session to ~/.hermes/cache/session-digest/<sid>.txt (mode 600),
+# clears leftovers of the previous run, prints {"count", "sessions": [{id, title, transcript}]}.
 
-python3 extract_sessions.py --write-entry="<entry_md>" --date=YYYY-MM-DD
-# Append a markdown entry to that date's file at ~/.hermes/knowledge/session-digests/.
-# Use '=' syntax for both flags.
+python3 digest.py commit <sid> <result_file>
+# Parses the subagent reply (SUMMARY / KEYWORDS / NOTEWORTHY / REASON), appends the entry to
+# ~/.hermes/knowledge/session-digests/<end-date>.md, records the session, deletes temp files.
+# Prints "OK ..." or "ERROR: ..." (exit 1). Idempotent: an already recorded session is a no-op,
+# an entry already present in the file is not written twice.
 
-python3 extract_sessions.py --record --sid=<sid> --noteworthy=<0|1> --digest-file=<abs_path> --keywords="kw1,kw2"
-# Mark the session as digested in ~/.hermes/digest_state.db. Idempotent UPSERT.
+python3 digest.py report
+# Telegram text for this run: noteworthy sessions + failed ones (retried next run), or [SILENT].
+
+python3 digest.py transcript <sid>
+# Print one transcript to stdout (debugging).
 ```
 
-Pure Python 3.11 stdlib. No external dependencies. No LLM calls.
+## Transcript rules
 
-### `extract_session_text.py`
+- Only `active = 1` rows, in id order. After in-place compaction that is what the model last saw: the first turns, then the compaction summary standing in for the archived middle, then the tail.
+- Rows starting with `[CONTEXT COMPACTION` / `[PRIOR CONTEXT` are labelled `--- context compaction ---`.
+- Runtime injections stored as `role='user'` (delegation callbacks, background-process notices, cron / skill preambles, out-of-band messages, gateway metadata, `[SYSTEM: ...]`) are labelled `--- system (...) ---`.
+- Tool results and tool-call-only assistant turns become `>>> Tool call <<<`, and runs of them `>>> Tool call <<<  (xN)`.
+- Back-to-back identical rows are written once.
 
-Per-session transcript filter. Reads `~/.hermes/state.db`, writes a summarizer-friendly plain-text transcript to stdout:
+## Why no time cursor
 
-- `--- user ---` / `--- assistant ---` sections for real conversation.
-- Runtime injections re-labeled: `--- system (delegation result) ---`, `--- system (background process) ---`, `--- system (cron job) ---`, `--- system (skill invocation) ---`, `--- system (out-of-band user message) ---`, `--- system (image fetch failed) ---`, `--- system (gateway metadata) ---`, generic `--- system ---`.
-- Tool calls/results collapsed to `>>> Tool call <<<`. Consecutive runs compressed to `>>> Tool call <<<  (xN)`.
-- Context-compaction summaries: when a message containing `[CONTEXT COMPACTION` is seen, the buffer is discarded and replaced with the summary body. The last summary wins; everything after it accumulates.
-- Triple-write dedupe (Hermes writes some rows 2-3×; identical `(timestamp, role, content)` rows are dropped).
+The previous version selected sessions with `last_activity_at > MAX(digested_at)`. That lost sessions still open at 05:00 and everything beyond the per-run cap. Now the only filter is "ended and not yet in `digest_state.db`", within a 14-day lookback.
 
-```bash
-python3 extract_session_text.py <session_id> > /tmp/transcript-<sid>.txt
-```
+## Files
 
-Output is a plain-text transcript intended to be read by a fresh-context LLM subagent that produces a summary + keywords.
+- State: `~/.hermes/digest_state.db` (table `digested`)
+- Output: `~/.hermes/knowledge/session-digests/YYYY-MM-DD.md` (grouped by end date)
+- Log: `~/.hermes/logs/session_digest.log`
+- Scratch: `~/.hermes/cache/session-digest/` (transcripts, subagent results, `run.json`)
 
-## Cron integration
-
-The cron job `6d986a839a80` ("Daily Session Digest") invokes these scripts. See `~/.hermes/cron/jobs.json` for the current prompt (which carries the full procedure inline — no skill loader).
-
-## Path convention
-
-The cron prompt hardcodes the absolute path to this project:
-
-```
-/home/hermes/.hermes/projects/hermes-session-digest/extract_session_text.py
-```
-
-If the project moves, update the cron prompt and re-test before the next 05:00 run.
+The cron prompt (in `~/.hermes/cron/jobs.json`) hardcodes the absolute path to `digest.py`. If the project moves, update the prompt.
 
 ## License
 
