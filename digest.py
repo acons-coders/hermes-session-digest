@@ -255,8 +255,8 @@ def render_entry(meta: sqlite3.Row, res: dict) -> str:
     flag = f"YES — {res['reason']}" if res["noteworthy"] else "no"
     return (
         f"## {fmt_time(meta['last_activity_at'], '%H:%M')} [{tag}] — {meta['title'] or '(untitled)'}\n"
-        f"**Session ID:** `{meta['id']}` ({meta['message_count']} messages) · "
-        f"`{meta['model']}` @ `{meta['billing_provider'] or '?'}`\n"
+        f"**Session ID:** `{meta['id']}` ({meta['message_count']} messages)\n"
+        f"**Model:** `{meta['model']}` @ `{meta['billing_provider'] or '?'}`\n"
         f"**Started:** {fmt_time(meta['started_at'], '%Y-%m-%d %H:%M')} · "
         f"**Ended:** {fmt_time(meta['last_activity_at'], '%Y-%m-%d %H:%M')}\n"
         f"**Keywords:** {', '.join(res['keywords'])}\n"
