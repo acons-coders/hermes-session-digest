@@ -28,7 +28,11 @@ SUMMARY:
 (2-4 sentences in English: what the user wanted, what was done, how it ended.)
 
 KEYWORDS:
-(5-10 lowercase keywords, comma-separated, hyphens for multi-word. Specific names of tools, projects, places. Not: session, user, help, hermes.)
+(7-12 atomic keywords, comma-separated, lowercase. ONE concept per keyword —
+split compound terms at the natural join: "session-digest" → "session" + "digest".
+Keep NAMES whole (people, places, products, models, files): "die-linke",
+"al-jazeera", "gemini-3-flash", "openpyxl" stay as-is. Skip: session, user, help,
+check, setup, update, generic verbs. Order: most specific first.)
 
 NOTEWORTHY:
 (yes or no)
