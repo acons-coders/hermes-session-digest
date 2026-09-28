@@ -255,7 +255,8 @@ def render_entry(meta: sqlite3.Row, res: dict) -> str:
     flag = f"YES — {res['reason']}" if res["noteworthy"] else "no"
     return (
         f"## {fmt_time(meta['last_activity_at'], '%H:%M')} [{tag}] — {meta['title'] or '(untitled)'}\n"
-        f"**Session ID:** `{meta['id']}` ({meta['message_count']} messages)\n"
+        f"**Session ID:** `{meta['id']}` ({meta['message_count']} messages) · "
+        f"`{meta['model']}` @ `{meta['billing_provider'] or '?'}`\n"
         f"**Started:** {fmt_time(meta['started_at'], '%Y-%m-%d %H:%M')} · "
         f"**Ended:** {fmt_time(meta['last_activity_at'], '%Y-%m-%d %H:%M')}\n"
         f"**Keywords:** {', '.join(res['keywords'])}\n"
@@ -276,7 +277,8 @@ def cmd_commit(args) -> int:
         res = parse_result(result_file.read_text())
         with state_conn() as s:
             meta = s.execute(
-                "SELECT id, title, source, started_at, last_activity_at, message_count "
+                "SELECT id, title, source, started_at, last_activity_at, message_count, "
+                "model, billing_provider "
                 "FROM sessions WHERE id = ?", (sid,)).fetchone()
         if meta is None:
             raise ValueError(f"unknown session id: {sid}")
