@@ -243,7 +243,7 @@ def parse_result(text: str) -> dict:
     noteworthy = flag == "yes"
     if noteworthy and reason in ("", "-"):
         raise ValueError("NOTEWORTHY is yes but REASON is empty")
-    return {"summary": summary, "keywords": keywords[:10],
+    return {"summary": summary, "keywords": keywords[:12],
             "noteworthy": noteworthy, "reason": reason if noteworthy else ""}
 
 
