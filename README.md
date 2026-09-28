@@ -49,6 +49,38 @@ The previous version selected sessions with `last_activity_at > MAX(digested_at)
 
 The cron prompt (in `~/.hermes/cron/jobs.json`) hardcodes the absolute path to `digest.py`. If the project moves, update the prompt.
 
+## Entry format
+
+Each digest file (`~/.hermes/knowledge/session-digests/YYYY-MM-DD.md`) is a flat
+list of entries, one per session, grouped by the session's **end date**. Format
+is rendered by `digest.py` (`render_entry`), not by the subagent:
+
+```markdown
+## HH:MM [TG|CLI|cron|subagent] — <title>
+**Session ID:** `<sid>` (N messages)
+**Model:** `<model>` @ `<billing_provider>`
+**Started:** YYYY-MM-DD HH:MM · **Ended:** YYYY-MM-DD HH:MM
+**Keywords:** k1, k2, k3, ...
+**Noteworthy:** YES — <reason>  |  no
+
+<2-4 sentence English summary>
+
+---
+```
+
+- Title line: end-time (HH:MM) + source tag + session title (or `(untitled)`).
+- Session ID: opaque Hermes session id, plus message count. The model and
+  billing provider come from the `sessions` table; if `billing_provider` is NULL
+  it renders as `?` (real data issue, not our problem).
+- Started/Ended: full date + time. Cross-midnight sessions land on the end date.
+- Keywords: 7–12 atomic, lowercase, comma-separated. One concept per keyword;
+  compound terms split at the natural join. Names of people/places/products/
+  models/files stay whole. Subagent produces them; `parse_result` caps at 12.
+- Noteworthy: `YES — <one-sentence reason>` (only if a decision was made,
+  something new was created, the user said "remember"/"save"/"write down",
+  or the session ended with an open task/question). Otherwise `no`.
+- Summary: 2–4 sentences in English.
+
 ## Cron prompt
 
 `cron_prompt.txt` is the source of truth for the job's prompt. `jobs.json` holds the deployed copy. Edit the file, commit, then:
