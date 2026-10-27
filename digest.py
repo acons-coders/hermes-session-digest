@@ -97,6 +97,28 @@ def transcript_path(sid: str) -> Path:
 
 # --- pending ----------------------------------------------------------------
 
+def own_run_session_ids(conn: sqlite3.Connection) -> set[str]:
+    """Session ids of this job's own cron runs.
+
+    Legacy runs were named ``cron_{JOB_ID}_{YYYYmmdd_HHMMSS}`` (covered by the
+    ``id LIKE`` clause below). The unified runtime mints the run session as
+    ``local-<sha256>`` instead, so the id shape no longer identifies them: the
+    durable link is the admission row, request id ``cron:{JOB_ID}:{execution_id}``
+    (``hermes_state_keys.cron_request_id``) pointing at the run's session.
+    Without this the digest digests itself (seen 2026-10-25 onward).
+    """
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_admissions'"
+    ).fetchone():
+        return set()
+    return {
+        r[0] for r in conn.execute(
+            "SELECT target_session_id FROM session_admissions WHERE request_id LIKE ?",
+            (f"cron:{JOB_ID}:%",),
+        ) if r[0]
+    }
+
+
 def find_pending() -> list[sqlite3.Row]:
     """Ended sessions not yet digested. No time cursor: anything missed (open at run
     time, over the per-run cap) is still found next run, within LOOKBACK_DAYS."""
@@ -105,6 +127,7 @@ def find_pending() -> list[sqlite3.Row]:
     since = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).timestamp()
     own = f"cron_{JOB_ID}_%"
     with state_conn() as s:
+        own_runs = own_run_session_ids(s)
         rows = s.execute(
             """SELECT id, title, source, started_at, last_activity_at, message_count
                  FROM sessions
@@ -116,11 +139,32 @@ def find_pending() -> list[sqlite3.Row]:
                 ORDER BY last_activity_at""",
             (MIN_MESSAGES, since, own, own),
         ).fetchall()
-    return [r for r in rows if r["id"] not in done]
+    return [r for r in rows if r["id"] not in done and r["id"] not in own_runs]
+
+
+def mark_own_runs_digested() -> None:
+    """Persist this job's own run session ids in ``digested``.
+
+    ``find_pending`` discovers them through ``session_admissions``, which the gateway
+    prunes once terminal — this makes the exclusion outlive that row. No entry is
+    written: ``digest_file`` stays empty and nothing reads it back.
+    """
+    with state_conn() as s:
+        ids = own_run_session_ids(s)
+    if not ids:
+        return
+    now = datetime.now().isoformat(timespec="seconds")
+    with digest_conn() as d:
+        d.executemany(
+            """INSERT OR IGNORE INTO digested (session_id, digested_at, digest_file, noteworthy)
+               VALUES (?, ?, '', 0)""",
+            [(sid, now) for sid in sorted(ids)],
+        )
 
 
 def cmd_pending(_args) -> int:
     rows = find_pending()
+    mark_own_runs_digested()
     if len(rows) > MAX_SESSIONS_PER_RUN:
         log(f"{len(rows)} pending, processing {MAX_SESSIONS_PER_RUN}; rest next run")
         rows = rows[:MAX_SESSIONS_PER_RUN]
