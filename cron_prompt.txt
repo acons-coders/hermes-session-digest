@@ -1,7 +1,7 @@
 Daily Session Digest. Do the steps in order. Never ask questions.
 
 STEP 1. Run this command with the terminal tool:
-  python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py pending
+  python3 /home/hermes/projects/hermes-session-digest/digest.py pending
 It prints JSON: {"count": N, "sessions": [{"id": "...", "title": "...", "transcript": "..."}, ...]}
 If count is 0: reply exactly [SILENT] and stop.
 
@@ -10,12 +10,12 @@ STEP 2. For EACH session in the list, one at a time, in order:
   b. Take the subagent's reply text. Save it unchanged with write_file to the transcript path plus ".result"
      (example: transcript /x/abc.txt -> write to /x/abc.txt.result).
   c. Run with the terminal tool (put in the session id and the .result path):
-     python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py commit SESSION_ID RESULT_PATH
+     python3 /home/hermes/projects/hermes-session-digest/digest.py commit SESSION_ID RESULT_PATH
      It prints OK or ERROR. On ERROR, do not retry. Go to the next session.
 Do not skip sessions. Do not write digest files yourself.
 
 STEP 3. Run with the terminal tool:
-  python3 /home/hermes/.hermes/projects/hermes-session-digest/digest.py report
+  python3 /home/hermes/projects/hermes-session-digest/digest.py report
 Your final reply is exactly its output. Add nothing. Do not use send_message.
 
 === SUBAGENT TEXT ===
